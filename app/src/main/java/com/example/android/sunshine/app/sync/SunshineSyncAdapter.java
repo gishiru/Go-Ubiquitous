@@ -24,6 +24,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.annotation.IntDef;
+import android.support.annotation.NonNull;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.TaskStackBuilder;
 import android.text.format.Time;
@@ -36,6 +37,13 @@ import com.example.android.sunshine.app.R;
 import com.example.android.sunshine.app.Utility;
 import com.example.android.sunshine.app.data.WeatherContract;
 import com.example.android.sunshine.app.muzei.WeatherMuzeiSource;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -86,6 +94,16 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     public static final int LOCATION_STATUS_SERVER_INVALID = 2;
     public static final int LOCATION_STATUS_UNKNOWN = 3;
     public static final int LOCATION_STATUS_INVALID = 4;
+
+    // Wear.
+    private static final String KEY_HIGH = "high";
+    private static final String KEY_LOW = "low";
+    private static final String KEY_TIMESTAMP = "key";
+    private static final String KEY_WEATHER_ID = "weather_id";
+    private static final String WEATHER_INFO = "/weather-info";
+    private Double mTodayHigh = 0D;
+    private Double mTodayLow = 0D;
+    private int mTodayWeatherId = 0;
 
     public SunshineSyncAdapter(Context context, boolean autoInitialize) {
         super(context, autoInitialize);
@@ -330,6 +348,12 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 weatherValues.put(WeatherContract.WeatherEntry.COLUMN_WEATHER_ID, weatherId);
 
                 cVVector.add(weatherValues);
+
+                if (i == 0) {
+                    mTodayHigh = high;
+                    mTodayLow = low;
+                    mTodayWeatherId = weatherId;
+                }
             }
 
             int inserted = 0;
@@ -347,6 +371,52 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 updateWidgets();
                 updateMuzei();
                 notifyWeather();
+
+                // This is time to update wear's data.
+                SharedPreferences sharedPreferences = PreferenceManager
+                    .getDefaultSharedPreferences(getContext());
+                if ((Double.compare(mTodayHigh, Double.parseDouble(sharedPreferences.getString(KEY_HIGH, "0"))) != 0) ||
+                    (Double.compare(mTodayLow, Double.parseDouble(sharedPreferences.getString(KEY_LOW, "0"))) != 0) ||
+                    mTodayWeatherId != sharedPreferences.getInt(KEY_WEATHER_ID, 0)) {
+                    // Connect to Google API.
+                    GoogleApiClient googleApiClient = new GoogleApiClient.Builder(getContext())
+                        .addApi(Wearable.API)
+                        .build();
+                    googleApiClient.connect();
+
+                    // Set data map.
+                    PutDataMapRequest putDataMapRequest = PutDataMapRequest.create(WEATHER_INFO);
+                    DataMap map = putDataMapRequest.getDataMap();
+                    map.putString(KEY_HIGH, Utility.formatTemperature(getContext(), mTodayHigh));
+                    map.putString(KEY_LOW, Utility.formatTemperature(getContext(), mTodayLow));
+                    map.putString(KEY_TIMESTAMP, Long.toString(System.currentTimeMillis()));
+                    map.putInt(KEY_WEATHER_ID, mTodayWeatherId);
+
+                    // Send data to wear.
+                    PutDataRequest request = putDataMapRequest.asPutDataRequest();
+                    Wearable.DataApi
+                        .putDataItem(googleApiClient, request)
+                        .setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                            @Override
+                            public void onResult(@NonNull DataApi.DataItemResult dataItemResult) {
+                                if (dataItemResult.getStatus().isSuccess()) {
+                                    Log.d(LOG_TAG, "Putting data is succeeded");
+
+                                    // Store last sent data.
+                                    PreferenceManager.getDefaultSharedPreferences(getContext())
+                                        .edit()
+                                        .putString(KEY_HIGH, String.valueOf(mTodayHigh))
+                                        .putString(KEY_LOW, String.valueOf(mTodayLow))
+                                        .putInt(KEY_WEATHER_ID, mTodayWeatherId)
+                                        .commit();
+                                } else {
+                                    Log.i(LOG_TAG, "Putting data is not succeeded");
+                                }
+                            }
+                        });
+                } else {
+                    Log.i(LOG_TAG, "Putting data is not needed");
+                }
             }
             Log.d(LOG_TAG, "Sync Complete. " + cVVector.size() + " Inserted");
             setLocationStatus(getContext(), LOCATION_STATUS_OK);
