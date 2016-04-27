@@ -35,5 +35,5 @@ dependencies {
   compile 'com.google.android.apps.muzei:muzei-api:2.+'
   compile 'com.google.android.gms:play-services-gcm:7.8.0'
   compile 'com.google.android.gms:play-services-wearable:7.8.0'
-  wearApp project(':wear')
+  wearApp project(':sunshinewear')
 }

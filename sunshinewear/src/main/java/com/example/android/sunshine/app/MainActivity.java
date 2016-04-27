@@ -1,4 +1,4 @@
-package com.sunshinewear;
+package com.example.android.sunshine.app;
 
 import android.app.Activity;
 import android.os.Bundle;
