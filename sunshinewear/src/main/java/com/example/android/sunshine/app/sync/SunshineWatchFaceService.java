@@ -4,11 +4,13 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -20,6 +22,7 @@ import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
+import com.example.android.sunshine.app.WearUtils;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
@@ -100,8 +103,10 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         }
       }
     };
+    private int mWeatherId = 0;
 
     // Views.
+    private Bitmap mWeatherIcon = null;
     private Paint mBackgroundPaint = null;
     private Paint mColonPaint = null;
     private Paint mDatePaint = null;
@@ -195,7 +200,7 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
       mColonWidth = mColonPaint.measureText(":");
       mDatePaint.setTextSize(textSize / 2);
       mHighPaint.setTextSize(textSize * 2 / 3);
-      mLowPaint.setTextSize(textSize * 2 / 3);
+      mLowPaint.setTextSize(textSize / 2);
       mHourPaint.setTextSize(textSize);
       mMinutePaint.setTextSize(textSize);
     }
@@ -250,19 +255,26 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
                 mDatePaint);
 
         // Draw temperature high/low.
-        if ((mHigh != null) && (mLow != null)) {
+        if ((mWeatherId != -1) && (mHigh != null) && (mLow != null)) {
+          Bitmap bitmap = ((BitmapDrawable) ContextCompat.getDrawable(
+              getApplicationContext(),
+              mWeatherId))
+              .getBitmap();
+          float weatherHeight = mHighPaint.getTextSize() * 1.5f;
+          float weatherWidth = (weatherHeight / bitmap.getHeight()) * bitmap.getWidth();
+          mWeatherIcon = Bitmap
+              .createScaledBitmap(bitmap, (int) weatherWidth, (int) weatherHeight, true);
+          x = mXDistanceOffset * 2.5f;
           canvas
-              .drawText(
-                  mHigh,
-                  mXDistanceOffset,
-                  mDatePaint.measureText(dateString),
-                  mHighPaint);
-          canvas
-              .drawText(
-                  mLow,
-                  mXDistanceOffset + mHighPaint.measureText(mHigh) + mColonWidth / 2,
-                  mDatePaint.measureText(dateString),
-                  mLowPaint);
+              .drawBitmap(
+                  mWeatherIcon,
+                  x,
+                  mDatePaint.measureText(dateString) - weatherHeight * 3 / 4,
+                  null);
+          x += mWeatherIcon.getWidth() + mColonWidth * 1.5;
+          canvas.drawText(mHigh, x, mDatePaint.measureText(dateString), mHighPaint);
+          x += mHighPaint.measureText(mHigh) + mColonWidth / 2;
+          canvas.drawText(mLow, x, mDatePaint.measureText(dateString), mLowPaint);
         }
       }
     }
@@ -346,10 +358,10 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
           if (path.equals(WEATHER_INFO)) {
             mHigh = dataMap.getString(KEY_HIGH).trim();
             mLow = dataMap.getString(KEY_LOW).trim();
+            mWeatherId = WearUtils.getIconResourceForWeatherCondition(dataMap.getInt(KEY_WEATHER_ID));
 
             Log.i(TAG, "High: " + mHigh);
             Log.i(TAG, "Low: " + mLow);
-            Log.i(TAG, "Weather ID: " + dataMap.getInt(KEY_WEATHER_ID));
           }
         }
       }
