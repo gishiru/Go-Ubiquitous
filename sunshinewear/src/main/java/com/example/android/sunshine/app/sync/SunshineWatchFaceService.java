@@ -67,7 +67,9 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
     // Numeric.
     private static final long INTERACTIVE_UPDATE_RATE_MS = 500;
     private float mColonWidth = 0f;
-    private float mXDistanceOffset = 0f;
+    private float mXAmbientForecastOffset = 0f;
+    private float mXDateOffset = 0f;
+    private float mXForecastOffset = 0f;
     private float mXOffset = 0f;
     private float mYOffset = 0f;
 
@@ -124,9 +126,6 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
       // Initialize.
       mBackgroundPaint = new Paint();
       mCalendar = Calendar.getInstance();
-
-      // Set dimensions.
-      mYOffset = getResources().getDimension(R.dimen.y_offset);
 
       // Set paints.
       mBackgroundPaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.digital_time));
@@ -188,12 +187,19 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
       Log.d(TAG, "onApplyWindowInsets: " + (insets.isRound() ? "round" : "square"));
 
       // Set dimensions.
-      mXDistanceOffset =
-          getResources().getDimension(
-              insets.isRound() ?
-                  R.dimen.distance_x_offset_round :
-                  R.dimen.distance_x_offset);
-      mXOffset = getResources().getDimension(R.dimen.x_offset);
+      mXAmbientForecastOffset = getResources()
+          .getDimension(insets.isRound() ?
+              R.dimen.ambient_forecast_x_offset_round : R.dimen.ambient_forecast_x_offset);
+      mXDateOffset = getResources()
+          .getDimension(insets.isRound() ?
+              R.dimen.date_x_offset_round : R.dimen.date_x_offset);
+      mXForecastOffset = getResources()
+          .getDimension(insets.isRound() ?
+              R.dimen.forecast_x_offset_round : R.dimen.forecast_x_offset);
+      mXOffset = getResources()
+          .getDimension(insets.isRound() ? R.dimen.x_offset_round : R.dimen.x_offset);
+      mYOffset = getResources()
+          .getDimension(insets.isRound() ? R.dimen.y_offset_round : R.dimen.y_offset);
       float textSize = getResources().getDimension(insets.isRound()
           ? R.dimen.text_size_round : R.dimen.text_size);
       mColonPaint.setTextSize(textSize);
@@ -227,7 +233,7 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         if (hour == 0) {
           hour = 12;
         }
-        hourString = String.valueOf(hour);
+        hourString = formatTwoDigitNumber(hour);
       }
       canvas.drawText(hourString, x, mYOffset, mHourPaint);
       x += mHourPaint.measureText(hourString);
@@ -247,20 +253,23 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         String dateString = new SimpleDateFormat("EEE, MMM dd yyyy", Locale.getDefault())
             .format(now)
             .toUpperCase();
+        float y = mYOffset + getResources().getDimension(R.dimen.line_height);
         canvas
             .drawText(
                 dateString,
-                mXDistanceOffset,
-                mYOffset + getResources().getDimension(R.dimen.line_height),
+                mXDateOffset,
+                y,
                 mDatePaint);
 
         // Draw temperature high/low.
         if ((mWeatherId != -1) && (mHigh != null) && (mLow != null)) {
+          y += getResources().getDimension(R.dimen.line_height) * 2;
+
           if (isInAmbientMode()) {
             if ((Integer.parseInt(mHigh.split("°")[0]) / 10) > 0) {
-              x -= mHourPaint.measureText(hourString);
+              x = mXOffset + mXAmbientForecastOffset;
             } else {
-              x -= mHourPaint.measureText(hourString) - mColonWidth;
+              x = mXOffset + mXAmbientForecastOffset * 2;
             }
             mHighPaint.setColor(Color.WHITE);
             mLowPaint.setColor(Color.WHITE);
@@ -273,20 +282,24 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
             float weatherWidth = (weatherHeight / bitmap.getHeight()) * bitmap.getWidth();
             mWeatherIcon = Bitmap
                 .createScaledBitmap(bitmap, (int) weatherWidth, (int) weatherHeight, true);
-            x = mXDistanceOffset * 2.5f;
+            if ((Integer.parseInt(mHigh.split("°")[0]) / 10) > 0) {
+              x = mXForecastOffset;
+            } else {
+              x = mXForecastOffset + mColonWidth;
+            }
             canvas
                 .drawBitmap(
                     mWeatherIcon,
                     x,
-                    mDatePaint.measureText(dateString) - weatherHeight * 3 / 4,
+                    y - weatherHeight * 3 / 4,
                     null);
             x += mWeatherIcon.getWidth() + mColonWidth * 1.5;
             mHighPaint.setColor(Color.YELLOW);
             mLowPaint.setColor(Color.BLUE);
           }
-          canvas.drawText(mHigh, x, mDatePaint.measureText(dateString), mHighPaint);
+          canvas.drawText(mHigh, x, y, mHighPaint);
           x += mHighPaint.measureText(mHigh) + mColonWidth / 2;
-          canvas.drawText(mLow, x, mDatePaint.measureText(dateString), mLowPaint);
+          canvas.drawText(mLow, x, y, mLowPaint);
         }
       }
     }
