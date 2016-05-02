@@ -71,6 +71,7 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
     // Objects.
     private Calendar mCalendar = null;
     private GoogleApiClient mGoogleApiClient = null;
+    private String mHigh = null;
     private boolean mLowBitAmbient = false;
     private boolean mRegisteredTimeZoneReceiver = false;
     final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
@@ -102,7 +103,8 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
     // Views.
     private Paint mBackgroundPaint = null;
     private Paint mColonPaint = null;
-    private Paint mDate = null;
+    private Paint mDatePaint = null;
+    private Paint mHighPaint = null;
     private Paint mHourPaint = null;
     private Paint mMinutePaint = null;
 
@@ -122,7 +124,8 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
       // Set paints.
       mBackgroundPaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.digital_time));
       mColonPaint = createTextPaint(Color.WHITE, Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-      mDate = createTextPaint(ContextCompat.getColor(getApplicationContext(), R.color.digital_date));
+      mDatePaint = createTextPaint(ContextCompat.getColor(getApplicationContext(), R.color.digital_date));
+      mHighPaint = createTextPaint(Color.YELLOW, Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
       mHourPaint = createTextPaint(Color.WHITE, Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
       mMinutePaint = createTextPaint(Color.WHITE);
 
@@ -161,6 +164,7 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
       if (mLowBitAmbient) {
         boolean antiAlias = !inAmbientMode;
         mColonPaint.setAntiAlias(antiAlias);
+        mHighPaint.setAntiAlias(antiAlias);
         mHourPaint.setAntiAlias(antiAlias);
         mMinutePaint.setAntiAlias(antiAlias);
       }
@@ -185,7 +189,8 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
           ? R.dimen.text_size_round : R.dimen.text_size);
       mColonPaint.setTextSize(textSize);
       mColonWidth = mColonPaint.measureText(":");
-      mDate.setTextSize(textSize / 2);
+      mDatePaint.setTextSize(textSize / 2);
+      mHighPaint.setTextSize(textSize / 2);
       mHourPaint.setTextSize(textSize);
       mMinutePaint.setTextSize(textSize);
     }
@@ -227,13 +232,28 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
       x += mMinutePaint.measureText(minuteString);
 
       if (getPeekCardPosition().isEmpty()) {
+        // Draw date.
         int color = ContextCompat.getColor(getApplicationContext(), R.color.digital_date);
-        mDate.setColor(isInAmbientMode() ? Color.WHITE : color);
-        canvas.drawText(
-            new SimpleDateFormat("EEE, MMM dd yyyy", Locale.getDefault()).format(now).toUpperCase(),
-            mXDistanceOffset,
-            mYOffset + getResources().getDimension(R.dimen.line_height),
-            mDate);
+        mDatePaint.setColor(isInAmbientMode() ? Color.WHITE : color);
+        String dateString = new SimpleDateFormat("EEE, MMM dd yyyy", Locale.getDefault())
+            .format(now)
+            .toUpperCase();
+        canvas
+            .drawText(
+                dateString,
+                mXDistanceOffset,
+                mYOffset + getResources().getDimension(R.dimen.line_height),
+                mDatePaint);
+
+        // Draw temperature high.
+        if (mHigh != null) {
+          canvas
+              .drawText(
+                  mHigh,
+                  mXDistanceOffset,
+                  mDatePaint.measureText(dateString),
+                  mHighPaint);
+        }
       }
     }
 
@@ -314,7 +334,9 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
           Log.i(TAG, "Path: " + path);
 
           if (path.equals(WEATHER_INFO)) {
-            Log.i(TAG, "High: " + dataMap.getString(KEY_HIGH).trim());
+            mHigh = dataMap.getString(KEY_HIGH).trim();
+
+            Log.i(TAG, "High: " + mHigh);
             Log.i(TAG, "Low: " + dataMap.getString(KEY_LOW).trim());
             Log.i(TAG, "Weather ID: " + dataMap.getInt(KEY_WEATHER_ID));
           }
