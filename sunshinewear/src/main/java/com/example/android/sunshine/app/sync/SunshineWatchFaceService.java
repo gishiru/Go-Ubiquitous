@@ -72,6 +72,7 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
     private Calendar mCalendar = null;
     private GoogleApiClient mGoogleApiClient = null;
     private String mHigh = null;
+    private String mLow = null;
     private boolean mLowBitAmbient = false;
     private boolean mRegisteredTimeZoneReceiver = false;
     final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
@@ -106,6 +107,7 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
     private Paint mDatePaint = null;
     private Paint mHighPaint = null;
     private Paint mHourPaint = null;
+    private Paint mLowPaint = null;
     private Paint mMinutePaint = null;
 
     @Override
@@ -127,6 +129,7 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
       mDatePaint = createTextPaint(ContextCompat.getColor(getApplicationContext(), R.color.digital_date));
       mHighPaint = createTextPaint(Color.YELLOW, Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
       mHourPaint = createTextPaint(Color.WHITE, Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+      mLowPaint = createTextPaint(Color.BLUE);
       mMinutePaint = createTextPaint(Color.WHITE);
 
       // Build Google API Client.
@@ -166,6 +169,7 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         mColonPaint.setAntiAlias(antiAlias);
         mHighPaint.setAntiAlias(antiAlias);
         mHourPaint.setAntiAlias(antiAlias);
+        mLowPaint.setAntiAlias(antiAlias);
         mMinutePaint.setAntiAlias(antiAlias);
       }
       invalidate();
@@ -190,7 +194,8 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
       mColonPaint.setTextSize(textSize);
       mColonWidth = mColonPaint.measureText(":");
       mDatePaint.setTextSize(textSize / 2);
-      mHighPaint.setTextSize(textSize / 2);
+      mHighPaint.setTextSize(textSize * 2 / 3);
+      mLowPaint.setTextSize(textSize * 2 / 3);
       mHourPaint.setTextSize(textSize);
       mMinutePaint.setTextSize(textSize);
     }
@@ -229,7 +234,6 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
       // Draw minutes.
       String minuteString = formatTwoDigitNumber(mCalendar.get(Calendar.MINUTE));
       canvas.drawText(minuteString, x, mYOffset, mMinutePaint);
-      x += mMinutePaint.measureText(minuteString);
 
       if (getPeekCardPosition().isEmpty()) {
         // Draw date.
@@ -245,14 +249,20 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
                 mYOffset + getResources().getDimension(R.dimen.line_height),
                 mDatePaint);
 
-        // Draw temperature high.
-        if (mHigh != null) {
+        // Draw temperature high/low.
+        if ((mHigh != null) && (mLow != null)) {
           canvas
               .drawText(
                   mHigh,
                   mXDistanceOffset,
                   mDatePaint.measureText(dateString),
                   mHighPaint);
+          canvas
+              .drawText(
+                  mLow,
+                  mXDistanceOffset + mHighPaint.measureText(mHigh) + mColonWidth / 2,
+                  mDatePaint.measureText(dateString),
+                  mLowPaint);
         }
       }
     }
@@ -335,9 +345,10 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
 
           if (path.equals(WEATHER_INFO)) {
             mHigh = dataMap.getString(KEY_HIGH).trim();
+            mLow = dataMap.getString(KEY_LOW).trim();
 
             Log.i(TAG, "High: " + mHigh);
-            Log.i(TAG, "Low: " + dataMap.getString(KEY_LOW).trim());
+            Log.i(TAG, "Low: " + mLow);
             Log.i(TAG, "Weather ID: " + dataMap.getInt(KEY_WEATHER_ID));
           }
         }
