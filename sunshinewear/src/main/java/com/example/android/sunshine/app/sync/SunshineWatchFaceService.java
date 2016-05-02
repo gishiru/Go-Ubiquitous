@@ -22,6 +22,7 @@ import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
+import com.example.android.sunshine.app.R;
 import com.example.android.sunshine.app.WearUtils;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -34,7 +35,6 @@ import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
-import com.example.android.sunshine.app.R;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -256,22 +256,34 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
 
         // Draw temperature high/low.
         if ((mWeatherId != -1) && (mHigh != null) && (mLow != null)) {
-          Bitmap bitmap = ((BitmapDrawable) ContextCompat.getDrawable(
-              getApplicationContext(),
-              mWeatherId))
-              .getBitmap();
-          float weatherHeight = mHighPaint.getTextSize() * 1.5f;
-          float weatherWidth = (weatherHeight / bitmap.getHeight()) * bitmap.getWidth();
-          mWeatherIcon = Bitmap
-              .createScaledBitmap(bitmap, (int) weatherWidth, (int) weatherHeight, true);
-          x = mXDistanceOffset * 2.5f;
-          canvas
-              .drawBitmap(
-                  mWeatherIcon,
-                  x,
-                  mDatePaint.measureText(dateString) - weatherHeight * 3 / 4,
-                  null);
-          x += mWeatherIcon.getWidth() + mColonWidth * 1.5;
+          if (isInAmbientMode()) {
+            if ((Integer.parseInt(mHigh.split("°")[0]) / 10) > 0) {
+              x -= mHourPaint.measureText(hourString);
+            } else {
+              x -= mHourPaint.measureText(hourString) - mColonWidth;
+            }
+            mHighPaint.setColor(Color.WHITE);
+            mLowPaint.setColor(Color.WHITE);
+          } else {
+            Bitmap bitmap = ((BitmapDrawable) ContextCompat.getDrawable(
+                getApplicationContext(),
+                mWeatherId))
+                .getBitmap();
+            float weatherHeight = mHighPaint.getTextSize() * 1.5f;
+            float weatherWidth = (weatherHeight / bitmap.getHeight()) * bitmap.getWidth();
+            mWeatherIcon = Bitmap
+                .createScaledBitmap(bitmap, (int) weatherWidth, (int) weatherHeight, true);
+            x = mXDistanceOffset * 2.5f;
+            canvas
+                .drawBitmap(
+                    mWeatherIcon,
+                    x,
+                    mDatePaint.measureText(dateString) - weatherHeight * 3 / 4,
+                    null);
+            x += mWeatherIcon.getWidth() + mColonWidth * 1.5;
+            mHighPaint.setColor(Color.YELLOW);
+            mLowPaint.setColor(Color.BLUE);
+          }
           canvas.drawText(mHigh, x, mDatePaint.measureText(dateString), mHighPaint);
           x += mHighPaint.measureText(mHigh) + mColonWidth / 2;
           canvas.drawText(mLow, x, mDatePaint.measureText(dateString), mLowPaint);
