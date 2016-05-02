@@ -39,325 +39,331 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 public class SunshineWatchFaceService extends CanvasWatchFaceService {
-    private static final Typeface TYPEFACE_NORMAL =
-        Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
+  private static final Typeface TYPEFACE_NORMAL =
+      Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
+
+  @Override
+  public Engine onCreateEngine() {
+    return new Engine();
+  }
+
+  private class Engine extends CanvasWatchFaceService.Engine implements
+      GoogleApiClient.ConnectionCallbacks,
+      GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener {
+    private final String TAG = Engine.class.getSimpleName();
+
+    // Keys.
+    private static final String KEY_HIGH = "high";
+    private static final String KEY_LOW = "low";
+    private static final String KEY_TIMESTAMP = "request_key";
+    private static final String KEY_WEATHER_ID = "weather_id";
+    private static final int MSG_UPDATE_TIME = 0;
+    private static final String WEATHER_INFO = "/weather-info";
+    private static final String WEATHER_INFO_REQUEST = "/weather-info-request";
+
+    // Numeric.
+    private static final long INTERACTIVE_UPDATE_RATE_MS = 500;
+    private float mColonWidth = 0f;
+    private float mXDistanceOffset = 0f;
+    private float mXOffset = 0f;
+    private float mYOffset = 0f;
+
+    // Objects.
+    private Calendar mCalendar = null;
+    private GoogleApiClient mGoogleApiClient = null;
+    private boolean mLowBitAmbient = false;
+    private boolean mRegisteredTimeZoneReceiver = false;
+    final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
+      @Override
+      public void onReceive(Context context, Intent intent) {
+        mCalendar.setTimeZone(TimeZone.getDefault());
+        invalidate();
+      }
+    };
+    final Handler mUpdateTimeHandler = new Handler() {
+      @Override
+      public void handleMessage(Message msg) {
+        switch (msg.what) {
+          case MSG_UPDATE_TIME:
+            invalidate();
+            if (shouldTimerBeRunning()) {
+              mUpdateTimeHandler.sendEmptyMessageDelayed(
+                  MSG_UPDATE_TIME,
+                  INTERACTIVE_UPDATE_RATE_MS -
+                      (System.currentTimeMillis() % INTERACTIVE_UPDATE_RATE_MS));
+            }
+            break;
+          default:
+            break;
+        }
+      }
+    };
+
+    // Views.
+    private Paint mBackgroundPaint = null;
+    private Paint mColonPaint = null;
+    private Paint mDate = null;
+    private Paint mHourPaint = null;
+    private Paint mMinutePaint = null;
 
     @Override
-    public Engine onCreateEngine() {
-        return new Engine();
+    public void onCreate(SurfaceHolder holder) {
+      super.onCreate(holder);
+
+      Log.d(TAG, "On created");
+
+      // Initialize.
+      mBackgroundPaint = new Paint();
+      mCalendar = Calendar.getInstance();
+
+      // Set dimensions.
+      mYOffset = getResources().getDimension(R.dimen.y_offset);
+
+      // Set paints.
+      mBackgroundPaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.digital_time));
+      mColonPaint = createTextPaint(Color.WHITE, Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+      mDate = createTextPaint(ContextCompat.getColor(getApplicationContext(), R.color.digital_date));
+      mHourPaint = createTextPaint(Color.WHITE, Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+      mMinutePaint = createTextPaint(Color.WHITE);
+
+      // Build Google API Client.
+      mGoogleApiClient = new GoogleApiClient.Builder(SunshineWatchFaceService.this)
+          .addConnectionCallbacks(this)
+          .addOnConnectionFailedListener(this)
+          .addApi(Wearable.API)
+          .build();
     }
 
-    private class Engine extends CanvasWatchFaceService.Engine implements
-        GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener {
-        private final String TAG = Engine.class.getSimpleName();
+    @Override
+    public void onPropertiesChanged(Bundle properties) {
+      super.onPropertiesChanged(properties);
 
-        private static final String KEY_HIGH = "high";
-        private static final String KEY_LOW = "low";
-        private static final String KEY_TIMESTAMP = "request_key";
-        private static final String KEY_WEATHER_ID = "weather_id";
-        private static final long INTERACTIVE_UPDATE_RATE_MS = 500;
-        private static final int MSG_UPDATE_TIME = 0;
-        private static final String WEATHER_INFO = "/weather-info";
-        private static final String WEATHER_INFO_REQUEST = "/weather-info-request";
+      Log.d(TAG, "Properties: " + properties.getBoolean(PROPERTY_BURN_IN_PROTECTION, false));
 
-        private Paint mBackgroundPaint = null;
-        private Calendar mCalendar = null;
-        private Paint mColonPaint = null;
-        private float mColonWidth = 0f;
-        private Paint mDate = null;
-        private GoogleApiClient mGoogleApiClient = null;
-        private Paint mHourPaint = null;
-        private boolean mLowBitAmbient = false;
-        private Paint mMinutePaint = null;
-        private boolean mRegisteredTimeZoneReceiver = false;
-        final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                mCalendar.setTimeZone(TimeZone.getDefault());
-                invalidate();
-            }
-        };
-        final Handler mUpdateTimeHandler = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                switch (msg.what) {
-                    case MSG_UPDATE_TIME:
-                        invalidate();
-                        if (shouldTimerBeRunning()) {
-                            mUpdateTimeHandler.sendEmptyMessageDelayed(
-                                MSG_UPDATE_TIME,
-                                INTERACTIVE_UPDATE_RATE_MS -
-                                    (System.currentTimeMillis() % INTERACTIVE_UPDATE_RATE_MS));
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-        };
-        private float mXDistanceOffset = 0f;
-        private float mXOffset = 0f;
-        private float mYOffset = 0f;
-
-        @Override
-        public void onCreate(SurfaceHolder holder) {
-            super.onCreate(holder);
-
-            Log.d(TAG, "On created");
-
-            // Initialize.
-            mBackgroundPaint = new Paint();
-            mCalendar = Calendar.getInstance();
-
-            // Set dimensions.
-            mYOffset = getResources().getDimension(R.dimen.y_offset);
-
-            // Set paints.
-            mBackgroundPaint.setColor(ContextCompat.getColor(getApplicationContext(), R.color.digital_time));
-            mColonPaint = createTextPaint(Color.WHITE, Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-            mDate = createTextPaint(ContextCompat.getColor(getApplicationContext(), R.color.digital_date));
-            mHourPaint = createTextPaint(Color.WHITE, Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-            mMinutePaint = createTextPaint(Color.WHITE);
-
-            // Build Google API Client.
-            mGoogleApiClient = new GoogleApiClient.Builder(SunshineWatchFaceService.this)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .addApi(Wearable.API)
-                .build();
-        }
-
-        @Override
-        public void onPropertiesChanged(Bundle properties) {
-            super.onPropertiesChanged(properties);
-
-            Log.d(TAG, "Properties: " + properties.getBoolean(PROPERTY_BURN_IN_PROTECTION, false));
-
-            mLowBitAmbient = properties.getBoolean(PROPERTY_LOW_BIT_AMBIENT, false);
-        }
-
-        @Override
-        public void onTimeTick() {
-            super.onTimeTick();
-
-            Log.d(TAG, "Ambient: " + isInAmbientMode());
-
-            invalidate();
-        }
-
-        @Override
-        public void onAmbientModeChanged(boolean inAmbientMode) {
-            super.onAmbientModeChanged(inAmbientMode);
-
-            Log.d(TAG, "Ambient mode: " + inAmbientMode);
-
-            if (mLowBitAmbient) {
-                boolean antiAlias = !inAmbientMode;
-                mColonPaint.setAntiAlias(antiAlias);
-                mHourPaint.setAntiAlias(antiAlias);
-                mMinutePaint.setAntiAlias(antiAlias);
-            }
-            invalidate();
-            updateTimer();
-        }
-
-        @Override
-        public void onApplyWindowInsets(WindowInsets insets) {
-            super.onApplyWindowInsets(insets);
-
-            Log.d(TAG, "onApplyWindowInsets: " + (insets.isRound() ? "round" : "square"));
-
-            // Set dimensions.
-            mXDistanceOffset =
-                getResources().getDimension(
-                    insets.isRound() ?
-                        R.dimen.distance_x_offset_round :
-                        R.dimen.distance_x_offset);
-            mXOffset = getResources().getDimension(R.dimen.x_offset);
-            float textSize = getResources().getDimension(insets.isRound()
-                ? R.dimen.text_size_round : R.dimen.text_size);
-            mColonPaint.setTextSize(textSize);
-            mColonWidth = mColonPaint.measureText(":");
-            mDate.setTextSize(textSize / 2);
-            mHourPaint.setTextSize(textSize);
-            mMinutePaint.setTextSize(textSize);
-        }
-
-        @Override
-        public void onDraw(Canvas canvas, Rect bounds) {
-            // Draw the background.
-            if (isInAmbientMode()) {
-                canvas.drawColor(Color.BLACK);
-            } else {
-                canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
-            }
-
-            // Draw hours.
-            String hourString;
-            boolean is24Hour = DateFormat.is24HourFormat(SunshineWatchFaceService.this);
-            long now = System.currentTimeMillis();
-            mCalendar.setTimeInMillis(now);
-            float x = mXOffset;
-            if (is24Hour) {
-                hourString = formatTwoDigitNumber(mCalendar.get(Calendar.HOUR_OF_DAY));
-            } else {
-                int hour = mCalendar.get(Calendar.HOUR);
-                if (hour == 0) {
-                    hour = 12;
-                }
-                hourString = String.valueOf(hour);
-            }
-            canvas.drawText(hourString, x, mYOffset, mHourPaint);
-            x += mHourPaint.measureText(hourString);
-
-            // Draw colon.
-            canvas.drawText(":", x, mYOffset, mColonPaint);
-            x += mColonWidth;
-
-            // Draw minutes.
-            String minuteString = formatTwoDigitNumber(mCalendar.get(Calendar.MINUTE));
-            canvas.drawText(minuteString, x, mYOffset, mMinutePaint);
-            x += mMinutePaint.measureText(minuteString);
-
-            if (getPeekCardPosition().isEmpty()) {
-                int color = ContextCompat.getColor(getApplicationContext(), R.color.digital_date);
-                mDate.setColor(isInAmbientMode() ? Color.WHITE : color);
-                canvas.drawText(
-                    new SimpleDateFormat("EEE, MMM dd yyyy", Locale.getDefault()).format(now).toUpperCase(),
-                    mXDistanceOffset,
-                    mYOffset + getResources().getDimension(R.dimen.line_height),
-                    mDate);
-            }
-        }
-
-        @Override
-        public void onSurfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-            super.onSurfaceChanged(holder, format, width, height);
-        }
-
-        @Override
-        public void onVisibilityChanged(boolean visible) {
-            super.onVisibilityChanged(visible);
-
-            Log.d(TAG, "Visibility: " + visible);
-
-            if (visible) {
-                if ((mGoogleApiClient != null) && !mGoogleApiClient.isConnected()) {
-                    mGoogleApiClient.connect();
-                }
-                registerReceiver();
-                mCalendar.setTimeZone(TimeZone.getDefault());
-            } else {
-                if ((mGoogleApiClient != null) && mGoogleApiClient.isConnected()) {
-                    Wearable.DataApi.removeListener(mGoogleApiClient, this);
-                    mGoogleApiClient.disconnect();
-                }
-                unregisterReceiver();
-            }
-
-            updateTimer();
-        }
-
-        @Override
-        public void onConnected(Bundle bundle) {
-            Log.d(TAG, "Connection is succeeded");
-
-            Wearable.DataApi.addListener(mGoogleApiClient, this);
-
-            // Set data map.
-            PutDataMapRequest putDataMapRequest = PutDataMapRequest.create(WEATHER_INFO_REQUEST);
-            DataMap map = putDataMapRequest.getDataMap();
-            map.putString(KEY_TIMESTAMP, Long.toString(System.currentTimeMillis()));
-
-            // Send data to handheld.
-            PutDataRequest request = putDataMapRequest.asPutDataRequest();
-            Wearable.DataApi
-                .putDataItem(mGoogleApiClient, request)
-                .setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
-                    @Override
-                    public void onResult(@NonNull DataApi.DataItemResult dataItemResult) {
-                        if (dataItemResult.getStatus().isSuccess()) {
-                            Log.d(TAG, "Putting data is succeeded");
-                        } else {
-                            Log.i(TAG, "Putting data is not succeeded");
-                        }
-                    }
-                });
-        }
-
-        @Override
-        public void onConnectionSuspended(int i) {
-            Log.i(TAG, "Connection is suspended with: " + i);
-        }
-
-        @Override
-        public void onConnectionFailed(ConnectionResult connectionResult) {
-            Log.i(TAG, "Connection is failed by: " + connectionResult.toString());
-        }
-
-        @Override
-        public void onDataChanged(DataEventBuffer dataEventBuffer) {
-            Log.d(TAG, "Data is changed");
-
-            for (DataEvent dataEvent : dataEventBuffer) {
-                if (dataEvent.getType() == DataEvent.TYPE_CHANGED) {
-                    DataMap dataMap = DataMapItem.fromDataItem(dataEvent.getDataItem()).getDataMap();
-                    String path = dataEvent.getDataItem().getUri().getPath();
-
-                    Log.i(TAG, "Path: " + path);
-
-                    if (path.equals(WEATHER_INFO)) {
-                        Log.i(TAG, "High: " + dataMap.getString(KEY_HIGH).trim());
-                        Log.i(TAG, "Low: " + dataMap.getString(KEY_LOW).trim());
-                        Log.i(TAG, "Weather ID: " + dataMap.getInt(KEY_WEATHER_ID));
-                    }
-                }
-            }
-        }
-
-        private Paint createTextPaint(int defaultInteractiveColor) {
-            return createTextPaint(defaultInteractiveColor, TYPEFACE_NORMAL);
-        }
-
-        private Paint createTextPaint(int defaultInteractiveColor, Typeface typeface) {
-            Paint paint = new Paint();
-            paint.setColor(defaultInteractiveColor);
-            paint.setTypeface(typeface);
-            paint.setAntiAlias(true);
-            return paint;
-        }
-
-        private String formatTwoDigitNumber(int hour) {
-            return String.format("%02d", hour);
-        }
-
-        private void registerReceiver() {
-            if (mRegisteredTimeZoneReceiver) {
-                return;
-            }
-            mRegisteredTimeZoneReceiver = true;
-            IntentFilter filter = new IntentFilter(Intent.ACTION_TIMEZONE_CHANGED);
-            SunshineWatchFaceService.this.registerReceiver(mTimeZoneReceiver, filter);
-        }
-
-        private boolean shouldTimerBeRunning() {
-            return isVisible() && !isInAmbientMode();
-        }
-
-        private void unregisterReceiver() {
-            if (!mRegisteredTimeZoneReceiver) {
-                return;
-            }
-            mRegisteredTimeZoneReceiver = false;
-            SunshineWatchFaceService.this.unregisterReceiver(mTimeZoneReceiver);
-        }
-
-        private void updateTimer() {
-            mUpdateTimeHandler.removeMessages(MSG_UPDATE_TIME);
-            if (shouldTimerBeRunning()) {
-                mUpdateTimeHandler.sendEmptyMessage(MSG_UPDATE_TIME);
-            }
-        }
+      mLowBitAmbient = properties.getBoolean(PROPERTY_LOW_BIT_AMBIENT, false);
     }
+
+    @Override
+    public void onTimeTick() {
+      super.onTimeTick();
+
+      Log.d(TAG, "Ambient: " + isInAmbientMode());
+
+      invalidate();
+    }
+
+    @Override
+    public void onAmbientModeChanged(boolean inAmbientMode) {
+      super.onAmbientModeChanged(inAmbientMode);
+
+      Log.d(TAG, "Ambient mode: " + inAmbientMode);
+
+      if (mLowBitAmbient) {
+        boolean antiAlias = !inAmbientMode;
+        mColonPaint.setAntiAlias(antiAlias);
+        mHourPaint.setAntiAlias(antiAlias);
+        mMinutePaint.setAntiAlias(antiAlias);
+      }
+      invalidate();
+      updateTimer();
+    }
+
+    @Override
+    public void onApplyWindowInsets(WindowInsets insets) {
+      super.onApplyWindowInsets(insets);
+
+      Log.d(TAG, "onApplyWindowInsets: " + (insets.isRound() ? "round" : "square"));
+
+      // Set dimensions.
+      mXDistanceOffset =
+          getResources().getDimension(
+              insets.isRound() ?
+                  R.dimen.distance_x_offset_round :
+                  R.dimen.distance_x_offset);
+      mXOffset = getResources().getDimension(R.dimen.x_offset);
+      float textSize = getResources().getDimension(insets.isRound()
+          ? R.dimen.text_size_round : R.dimen.text_size);
+      mColonPaint.setTextSize(textSize);
+      mColonWidth = mColonPaint.measureText(":");
+      mDate.setTextSize(textSize / 2);
+      mHourPaint.setTextSize(textSize);
+      mMinutePaint.setTextSize(textSize);
+    }
+
+    @Override
+    public void onDraw(Canvas canvas, Rect bounds) {
+      // Draw the background.
+      if (isInAmbientMode()) {
+        canvas.drawColor(Color.BLACK);
+      } else {
+        canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
+      }
+
+      // Draw hours.
+      String hourString;
+      boolean is24Hour = DateFormat.is24HourFormat(SunshineWatchFaceService.this);
+      long now = System.currentTimeMillis();
+      mCalendar.setTimeInMillis(now);
+      float x = mXOffset;
+      if (is24Hour) {
+        hourString = formatTwoDigitNumber(mCalendar.get(Calendar.HOUR_OF_DAY));
+      } else {
+        int hour = mCalendar.get(Calendar.HOUR);
+        if (hour == 0) {
+          hour = 12;
+        }
+        hourString = String.valueOf(hour);
+      }
+      canvas.drawText(hourString, x, mYOffset, mHourPaint);
+      x += mHourPaint.measureText(hourString);
+
+      // Draw colon.
+      canvas.drawText(":", x, mYOffset, mColonPaint);
+      x += mColonWidth;
+
+      // Draw minutes.
+      String minuteString = formatTwoDigitNumber(mCalendar.get(Calendar.MINUTE));
+      canvas.drawText(minuteString, x, mYOffset, mMinutePaint);
+      x += mMinutePaint.measureText(minuteString);
+
+      if (getPeekCardPosition().isEmpty()) {
+        int color = ContextCompat.getColor(getApplicationContext(), R.color.digital_date);
+        mDate.setColor(isInAmbientMode() ? Color.WHITE : color);
+        canvas.drawText(
+            new SimpleDateFormat("EEE, MMM dd yyyy", Locale.getDefault()).format(now).toUpperCase(),
+            mXDistanceOffset,
+            mYOffset + getResources().getDimension(R.dimen.line_height),
+            mDate);
+      }
+    }
+
+    @Override
+    public void onSurfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+      super.onSurfaceChanged(holder, format, width, height);
+    }
+
+    @Override
+    public void onVisibilityChanged(boolean visible) {
+      super.onVisibilityChanged(visible);
+
+      Log.d(TAG, "Visibility: " + visible);
+
+      if (visible) {
+        if ((mGoogleApiClient != null) && !mGoogleApiClient.isConnected()) {
+          mGoogleApiClient.connect();
+        }
+        registerReceiver();
+        mCalendar.setTimeZone(TimeZone.getDefault());
+      } else {
+        if ((mGoogleApiClient != null) && mGoogleApiClient.isConnected()) {
+          Wearable.DataApi.removeListener(mGoogleApiClient, this);
+          mGoogleApiClient.disconnect();
+        }
+        unregisterReceiver();
+      }
+
+      updateTimer();
+    }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+      Log.d(TAG, "Connection is succeeded");
+
+      Wearable.DataApi.addListener(mGoogleApiClient, this);
+
+      // Set data map.
+      PutDataMapRequest putDataMapRequest = PutDataMapRequest.create(WEATHER_INFO_REQUEST);
+      DataMap map = putDataMapRequest.getDataMap();
+      map.putString(KEY_TIMESTAMP, Long.toString(System.currentTimeMillis()));
+
+      // Send data to handheld.
+      PutDataRequest request = putDataMapRequest.asPutDataRequest();
+      Wearable.DataApi
+          .putDataItem(mGoogleApiClient, request)
+          .setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+            @Override
+            public void onResult(@NonNull DataApi.DataItemResult dataItemResult) {
+              if (dataItemResult.getStatus().isSuccess()) {
+                Log.d(TAG, "Putting data is succeeded");
+              } else {
+                Log.i(TAG, "Putting data is not succeeded");
+              }
+            }
+          });
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+      Log.i(TAG, "Connection is suspended with: " + i);
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+      Log.i(TAG, "Connection is failed by: " + connectionResult.toString());
+    }
+
+    @Override
+    public void onDataChanged(DataEventBuffer dataEventBuffer) {
+      Log.d(TAG, "Data is changed");
+
+      for (DataEvent dataEvent : dataEventBuffer) {
+        if (dataEvent.getType() == DataEvent.TYPE_CHANGED) {
+          DataMap dataMap = DataMapItem.fromDataItem(dataEvent.getDataItem()).getDataMap();
+          String path = dataEvent.getDataItem().getUri().getPath();
+
+          Log.i(TAG, "Path: " + path);
+
+          if (path.equals(WEATHER_INFO)) {
+            Log.i(TAG, "High: " + dataMap.getString(KEY_HIGH).trim());
+            Log.i(TAG, "Low: " + dataMap.getString(KEY_LOW).trim());
+            Log.i(TAG, "Weather ID: " + dataMap.getInt(KEY_WEATHER_ID));
+          }
+        }
+      }
+    }
+
+    private Paint createTextPaint(int defaultInteractiveColor) {
+      return createTextPaint(defaultInteractiveColor, TYPEFACE_NORMAL);
+    }
+
+    private Paint createTextPaint(int defaultInteractiveColor, Typeface typeface) {
+      Paint paint = new Paint();
+      paint.setColor(defaultInteractiveColor);
+      paint.setTypeface(typeface);
+      paint.setAntiAlias(true);
+      return paint;
+    }
+
+    private String formatTwoDigitNumber(int hour) {
+      return String.format("%02d", hour);
+    }
+
+    private void registerReceiver() {
+      if (mRegisteredTimeZoneReceiver) {
+        return;
+      }
+      mRegisteredTimeZoneReceiver = true;
+      IntentFilter filter = new IntentFilter(Intent.ACTION_TIMEZONE_CHANGED);
+      SunshineWatchFaceService.this.registerReceiver(mTimeZoneReceiver, filter);
+    }
+
+    private boolean shouldTimerBeRunning() {
+      return isVisible() && !isInAmbientMode();
+    }
+
+    private void unregisterReceiver() {
+      if (!mRegisteredTimeZoneReceiver) {
+        return;
+      }
+      mRegisteredTimeZoneReceiver = false;
+      SunshineWatchFaceService.this.unregisterReceiver(mTimeZoneReceiver);
+    }
+
+    private void updateTimer() {
+      mUpdateTimeHandler.removeMessages(MSG_UPDATE_TIME);
+      if (shouldTimerBeRunning()) {
+        mUpdateTimeHandler.sendEmptyMessage(MSG_UPDATE_TIME);
+      }
+    }
+  }
 }
