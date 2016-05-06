@@ -32,7 +32,10 @@ You should have the skills you need to complete this app after completing:
 ##Design Mocks
 
 Feel free to use the following square and round designs as a design reference.
+
 ![Preview Image](../master/sunshinewear/src/main/res/drawable-hdpi/preview_digital.png)
+![Preview Image](../master/sunshinewear/src/main/res/drawable-hdpi/preview_digital_circular.png)
+
 But certainly feel free to customize and create per your own taste and preferences! We're looking forward to seeing what you create!
 
 ##Project Rubric
