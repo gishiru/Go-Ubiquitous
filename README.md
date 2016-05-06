@@ -1,35 +1,45 @@
 Advanced Android Sample App
 ===================================
 
-Synchronizes weather information from OpenWeatherMap on Android Phones and Tablets. Used in the Udacity Advanced Android course.
+##Project Overview
 
-Pre-requisites
---------------
-Android SDK 21 or Higher
-Build Tools version 21.1.2
-Android Support AppCompat 22.2.0
-Android Support Annotations 22.2.0
-Android Support GridLayout 22.2.0
-Android Support CardView 22.2.0
-Android Support Design 22.2.0
-Android Support RecyclerView 22.2.0
-Google Play Services GCM 7.0.0
-BumpTech Glide 3.5.2
+In this project, you will build a wearable watch face for Sunshine to run on an Android Wear device.
 
+##Why this Project?
 
-Getting Started
----------------
-This sample uses the Gradle build system.  To build this project, use the
-"gradlew build" command or use "Import Project" in Android Studio.
+Android Wear is an exciting way to integrate your app more directly into users’ lives. As a new developer, it will be important for you to understand how to perform this integration. This project gives you an opportunity to design a companion app for Sunshine, tying it to a watch face in order to enrich the experience.
 
-Support
--------
+##What Will I Learn?
 
-- Google+ Community: https://plus.google.com/communities/105153134372062985968
-- Stack Overflow: http://stackoverflow.com/questions/tagged/android
+Through this project, you will:
+* Understand the fundamentals of Android Wear.
+* Design for multiple watch form factors.
+* Communicate between a mobile device and a wearable device.
 
-Patches are encouraged, and may be submitted by forking this project and
-submitting a pull request through GitHub. Please see CONTRIBUTING.md for more details.
+##How Will I Complete this Project?
+
+##Supporting Courses
+You should have the skills you need to complete this app after completing:
+* [Developing Android Apps](https://www.udacity.com/course/viewer#!/c-ud853-nd)
+* [Advanced Android App Development](https://www.udacity.com/course/viewer#!/c-ud855-nd)
+* [Android Ubiquitous Computing](http://www.udacity.com/course/ud875-nd)
+
+##Required Tasks
+
+* Clone/Download a zip file of the [final branch of Sunshine from Advanced Android App Development.](https://github.com/udacity/Advanced_Android_Development/tree/7.05_Pretty_Wallpaper_Time)
+* Spend time exploring the samples built into Android Studio, looking for ways to incorporate that functionality into an Android Wear watchface.
+
+##Design Mocks
+
+Feel free to use the following square and round designs as a design reference.
+![Preview Image](../master/sunshinewear/src/res/drawable-hdpi/preview_digital.png)
+But certainly feel free to customize and create per your own taste and preferences! We're looking forward to seeing what you create!
+
+##Project Rubric
+
+Your project will be evaluated by a Udacity Code Reviewer according to [this rubric](https://review.udacity.com/#!/projects/4632379138/rubric).
+Be sure to review it thoroughly before you submit. All criteria must "meet specifications" in order to pass.
+Continue to the next node for submission and evaluation instructions.
 
 License
 -------
